@@ -1,0 +1,6 @@
+2025-09-21 18:16:21.050348+03:00 jdbc[13]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement "SELECT * FROM CHATS CHAT_USER [*]MESSAGES"; SQL statement:
+SELECT * FROM CHATS CHAT_USER MESSAGES [42000-232]
+2025-09-21 18:16:22.947437+03:00 jdbc[13]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement "SELECT * FROM CHATS CHAT_USER [*]MESSAGES USERS"; SQL statement:
+SELECT * FROM CHATS CHAT_USER MESSAGES USERS [42000-232]

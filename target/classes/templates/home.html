@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Home</title>
+    <style>
+        body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        margin-bottom: 100px;
+        background-color: #f0f2f5;
+        background-image: url('/images/bg.jpg');
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        }
+
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid #ccc; background-color: #fff; }
+        .create-chat-form { margin: 20px; padding: 20px; border: 1px solid #ddd; background-color: #fff; border-radius: 8px; }
+
+        .chat-menu { position: fixed; bottom: 0; left: 0; width: 100%; display: flex; align-items: flex-end; padding: 0 5px; box-sizing: border-box; height: 60px; }
+
+        .chat-window { width: 250px; height: 40px; margin: 0 5px; border: 1px solid #aaa; background-color: white; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-top-left-radius: 8px; border-top-right-radius: 8px; transition: width 0.3s ease, height 0.3s ease; }
+
+        /* BIGGER ACTIVE CHAT WINDOW */
+        .chat-window.active {
+            width: 550px;  /* Even wider */
+            height: 450px; /* Even taller */
+        }
+
+        .chat-header { background-color: #007bff; color: white; padding: 10px; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+        .chat-content { flex-grow: 1; display: none; flex-direction: row; min-height: 0; }
+        .chat-window.active .chat-content { display: flex; }
+
+        /* MESSAGES PANEL WITH INPUT BAR  */
+        .messages-panel {
+            flex-grow: 1;
+            border-right: 1px solid #ddd;
+            display: flex; /* Use flexbox for vertical layout */
+            flex-direction: column;
+        }
+        .messages-list {
+            padding: 10px;
+            overflow-y: auto; /* Make this part scrollable */
+            flex-grow: 1; /* Allow this to take up available space */
+        }
+        /* MESSAGE INPUT BAR */
+        .message-input-container {
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            background-color: #f8f9fa;
+        }
+        .message-input-container input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 18px;
+            box-sizing: border-box;
+        }
+
+        .users-panel { width: 150px; flex-shrink: 0; background-color: #f8f9fa; display: flex; flex-direction: column; }
+        .users-list-container { padding: 10px; overflow-y: auto; flex-grow: 1; }
+        .chat-users-list { list-style: none; padding: 0; margin: 0; font-size: 0.9em; }
+        .chat-actions { padding: 10px; flex-shrink: 0; border-top: 1px solid #ddd; }
+        .action-buttons-container { display: flex; gap: 5px; margin-bottom: 10px; }
+        .action-buttons-container > * { flex: 1; }
+
+        /* COMMON BUTTON STYLE */
+        .action-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .action-btn:hover {
+            background-color: #0056b3;
+        }
+        .action-btn.leave {
+             background-color: #dc3545; /* Red for leave button */
+        }
+        .action-btn.leave:hover {
+             background-color: #c82333;
+        }
+
+        .add-user-form { display: none; margin-top: 10px; }
+        .user-search-results { border: 1px solid #ddd; max-height: 100px; overflow-y: auto; background: #fff; }
+        .suggestion-item { padding: 5px; cursor: pointer; }
+        .suggestion-item:hover { background-color: #eee; }
+        .error-message { color: red; font-size: 0.8em; margin-top: 5px; font-weight: bold; }
+
+        .message-item { margin-bottom: 12px; }
+        .message-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+        .message-user { font-weight: bold; color: #050505; }
+        .message-timestamp { font-size: 0.75em; color: #65676b; }
+        .message-body { padding-left: 5px; white-space: pre-wrap; word-wrap: break-word; }
+        .message-form { display: flex; align-items: center; gap: 5px; }
+        .message-form input { flex-grow: 1; } /* existing input style is fine */
+        .message-form button { flex-shrink: 0; padding: 8px 12px; }
+
+        .input-error { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="header"><h1>Welcome, <span th:text="${username}">User</span>!</h1><form th:action="@{/logout}" method="get"><button type="submit" class="action-btn leave">Logout</button></form></div>
+
+<!-- Create Chat Form -->
+<div class="create-chat-form">
+    <h2>Create a New Chat</h2>
+    <form th:action="@{/create-chat}" method="post">
+        <input type="text" name="chatName" placeholder="Enter chat name" required>
+        <button type="submit" class="action-btn">Create Chat</button>
+    </form>
+</div>
+<div th:if="${#vars['error_global'] != null}" class="error-message" th:text="${#vars['error_global']}"></div>
+
+<!-- CHAT MENU -->
+<div class="chat-menu">
+    <div th:each="chat : ${userChats}" class="chat-window">
+        <div class="chat-header" th:attr="onclick=|toggleChat(this)|">
+            <span th:text="${chat.name}">Chat Name</span>
+        </div>
+
+        <div class="chat-content">
+            <!-- MESSAGES PANEL -->
+            <div class="messages-panel">
+                <div class="messages-list">
+                    <div th:if="${#lists.isEmpty(chat.messages)}"><p>No messages yet. Be the first!</p></div>
+
+                    <div th:each="message : ${chat.messages}" class="message-item">
+                        <div class="message-header">
+                            <span class="message-user" th:text="${message.user.name}"></span>
+                            <span class="message-timestamp" th:text="${#temporals.format(message.createdAt, 'dd MMM HH:mm')}"></span>
+                        </div>
+                        <div class="message-body" th:text="${message.content}"></div>
+                    </div>
+                </div>
+                <div class="message-input-container">
+                    <div class="error-message input-error" th:id="'error-empty-msg-' + ${chat.id}">Message cannot be empty.</div>
+                    <form class="message-form" th:attr="onsubmit=|sendMessage(event, ${chat.id})|">
+                        <input type="text" name="content" placeholder="Write something..." autocomplete="off" th:id="'message-input-' + ${chat.id}">
+                        <button type="submit" class="action-btn">Send</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Users Panel -->
+            <div class="users-panel">
+                <div class="users-list-container">
+                    <strong>Members:</strong>
+                    <ul class="chat-users-list" th:id="'userList-' + ${chat.id}">
+                        <li th:each="user : ${chat.users}" th:text="${user.name}"></li>
+                    </ul>
+                </div>
+
+                <div class="chat-actions">
+                    <div class="action-buttons-container">
+                        <button class="action-btn" th:attr="onclick=|toggleAddUserForm(${chat.id})|">Add</button>
+                        <form th:action="@{/chat/{id}/leave(id=${chat.id})}" method="post" onsubmit="return confirm('Leave this chat?');">
+                            <button type="submit" class="action-btn leave">Leave</button>
+                        </form>
+                    </div>
+
+                    <form th:action="@{/chat/{id}/addUser(id=${chat.id})}" method="post" class="add-user-form" th:id="'addUserForm-' + ${chat.id}"
+                          th:attr="onsubmit=|addUserToChat(event, ${chat.id})|">
+
+                        <input type="text" th:id="'usernameInput-' + ${chat.id}" name="username" placeholder="Username" autocomplete="off" th:attr="onkeyup=|searchUsers(event, ${chat.id})|">
+                        <button type="submit" class="action-btn">Confirm</button>
+                        <div class="user-search-results" th:id="'searchResults-' + ${chat.id}"></div>
+                        <div class="error-message input-error" th:id="'addUserError-' + ${chat.id}"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    /* Pass the logged-in username from Thymeleaf to a global JavaScript variable */
+    const currentUsername = /*[[${username}]]*/ 'User';
+
+    async function sendMessage(event, chatId) {
+        event.preventDefault(); // This is crucial - it stops the page from reloading!
+
+        const input = document.getElementById('message-input-' + chatId);
+        const errorDiv = document.getElementById('error-empty-msg-' + chatId);
+        const messageContent = input.value.trim();
+
+        if (messageContent === '') {
+            errorDiv.style.display = 'block';
+            return; // Stop the function
+        }
+        errorDiv.style.display = 'none';
+
+        // Use the Fetch API to send the data to the backend
+        const response = await fetch(`/chat/${chatId}/sendMessage`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                'content': messageContent
+            })
+        });
+
+        if (response.ok) {
+            // If the backend confirms success, update the UI dynamically
+            const messagesList = input.closest('.messages-panel').querySelector('.messages-list');
+
+            // Create the new message elements manually
+            const msgItem = document.createElement('div');
+            msgItem.className = 'message-item';
+
+            const msgHeader = document.createElement('div');
+            msgHeader.className = 'message-header';
+
+            const msgUser = document.createElement('span');
+            msgUser.className = 'message-user';
+            msgUser.textContent = currentUsername; // Use the global username variable
+
+            const msgTimestamp = document.createElement('span');
+            msgTimestamp.className = 'message-timestamp';
+            msgTimestamp.textContent = new Date().toLocaleTimeString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+            const msgBody = document.createElement('div');
+            msgBody.className = 'message-body';
+            msgBody.textContent = messageContent;
+
+            // Assemble the new message
+            msgHeader.appendChild(msgUser);
+            msgHeader.appendChild(msgTimestamp);
+            msgItem.appendChild(msgHeader);
+            msgItem.appendChild(msgBody);
+
+            // Add the new message to the list
+            messagesList.appendChild(msgItem);
+
+            // Clear the input field
+            input.value = '';
+
+            // Scroll to the bottom to see the new message
+            messagesList.scrollTop = messagesList.scrollHeight;
+        } else {
+            // Handle potential errors from the server if needed
+            alert('Message could not be sent.');
+        }
+    }
+    async function addUserToChat(event, chatId) {
+    event.preventDefault(); // Stop the page from reloading
+
+    const form = document.getElementById('addUserForm-' + chatId);
+    const input = document.getElementById('usernameInput-' + chatId);
+    const errorDiv = document.getElementById('addUserError-' + chatId);
+    const username = input.value.trim();
+
+    if (username === '') {
+        errorDiv.textContent = 'Username cannot be empty.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    errorDiv.style.display = 'none'; // Hide previous errors
+
+    const response = await fetch(`/chat/${chatId}/addUser`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            'username': username
+        })
+    });
+
+    if (response.ok) {
+        // --- SUCCESS ---
+        const data = await response.json(); // Get the {name: "..."} object
+        const userList = document.getElementById('userList-' + chatId);
+
+        // Create a new <li> element for the new user
+        const newUserLi = document.createElement('li');
+        newUserLi.textContent = data.name; // Use the name from the response
+        userList.appendChild(newUserLi);
+
+        // Reset and hide the form for a clean UX
+        input.value = '';
+        form.style.display = 'none';
+
+    } else {
+        // --- FAILURE ---
+        const errorData = await response.json(); // Get the {error: "..."} object
+        errorDiv.textContent = errorData.error; // Display the error from the backend
+        errorDiv.style.display = 'block';
+    }
+    }
+    function toggleChat(headerElement) {
+    const clickedWindow = headerElement.closest('.chat-window');
+    clickedWindow.classList.toggle('active');
+    }
+    function toggleAddUserForm(chatId) {
+        const form = document.getElementById('addUserForm-' + chatId);
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+    async function searchUsers(event, chatId) {
+        const query = event.target.value;
+        const resultsContainer = document.getElementById('searchResults-' + chatId);
+        if (query.length < 1) { resultsContainer.innerHTML = ''; return; }
+        const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
+        const usernames = await response.json();
+        resultsContainer.innerHTML = '';
+        usernames.forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.textContent = name;
+            item.onclick = () => selectUser(name, chatId);
+            resultsContainer.appendChild(item);
+        });
+    }
+    function selectUser(name, chatId) {
+        document.getElementById('usernameInput-' + chatId).value = name;
+        document.getElementById('searchResults-' + chatId).innerHTML = '';
+    }
+</script>
+
+</body>
+</html>
